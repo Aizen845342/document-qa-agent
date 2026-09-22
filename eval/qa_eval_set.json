@@ -1,0 +1,6 @@
+[
+  {
+    "question": "Example question about a fact stated in your documents",
+    "expected_answer": "The known-correct answer, written by hand after reading the source document"
+  }
+]

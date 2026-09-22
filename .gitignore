@@ -1,0 +1,16 @@
+# Secrets
+.env
+
+# Data
+documents/*.pdf
+data/chroma/
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# OS
+.DS_Store
