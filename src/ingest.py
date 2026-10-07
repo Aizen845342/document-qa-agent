@@ -38,14 +38,21 @@ def load_documents(folder_path: str) -> list:
 
 def split_into_chunks(documents: list, chunk_size: int = 800, overlap: int = 100) -> list:
     """Split loaded documents into overlapping chunks, preserving source metadata."""
-    raise NotImplementedError
+    text_splitter = RecursiveCharacterTextSplitter(separators=["\n\n", "\n", " ", ""], chunk_size=chunk_size, chunk_overlap=overlap)
+    chunks = text_splitter.split_documents(documents)
+    return chunks
+    
 
 
 if __name__ == "__main__":
     new_documents = load_documents("documents")
+    new_chunks = split_into_chunks(new_documents)
     print(f"Total documents loaded: {len(new_documents)}")
     if new_documents:
-        print(f"First page content: {new_documents[0].metadata}")
-        print(f"First 100 characters of page content: {new_documents[0].page_content[:100]}")
+        print(f"First page content: {new_documents[2].metadata}")
+        print(f"First 100 characters of page content: {new_documents[2].page_content[:100]}")
                                      
-        
+    print(f"Total chunks created: {len(new_chunks)}")
+    if new_chunks:
+        print(f"First chunk content: {new_chunks[0].metadata}")
+        print(f"First 100 characters of chunk content: {new_chunks[0].page_content[:100]}")
