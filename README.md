@@ -6,7 +6,7 @@ A retrieval-augmented question-answering agent: ask natural-language questions a
 
 ## Why this project
 
-Built as hands-on practice with the core building blocks of production LLM applications: document ingestion, embeddings, vector retrieval, prompt-grounded generation, and — the part most tutorials skip — actually evaluating whether the system's answers are correct and honestly sourced, not just plausible-sounding.
+Built as hands-on practice with the core building blocks of production LLM applications: document ingestion, embeddings, vector retrieval, prompt-grounded generation, and actually evaluating whether the system's answers are correct and honestly sourced, not just plausible-sounding.
 
 ## Pipeline overview
 
