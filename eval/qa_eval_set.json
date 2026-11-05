@@ -1,6 +1,18 @@
 [
   {
-    "question": "Example question about a fact stated in your documents",
-    "expected_answer": "The known-correct answer, written by hand after reading the source document"
+    "question": "What is frequency?",
+    "expected_answer": "Frequency is the number of wave cycles passing a fixed point per unit time. It is the inverse of the temporal period: ν = 1/τ, and is measured in hertz."
+  },
+  {
+    "question": "What is the relationship between wave speed, frequency, and wavelength?",
+    "expected_answer": "Wave speed equals frequency multiplied by wavelength: v = νλ. Therefore, for a fixed wave speed, frequency and wavelength are inversely proportional."
+  },
+  {
+    "question": "How is the wave number related to wavelength?",
+    "expected_answer": "The wave number is k = 2π/λ, so multiplying the wave number by the wavelength gives kλ = 2π."
+  },
+  {
+    "question": "What is angular frequency?",
+    "expected_answer": "Angular frequency is the temporal angular rate of oscillation. It is given by ω = 2π/τ = 2πν and is measured in radians per second."
   }
 ]

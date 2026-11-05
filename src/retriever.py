@@ -1,12 +1,4 @@
-"""
-Step 3: Embed a user question and retrieve the top-k most relevant chunks.
 
-Pseudocode:
-    retrieve_relevant_chunks(vector_store, question, k) ->
-        embed the question with the same embedding model used for chunks
-        run a similarity search against the vector store
-        return the top-k chunks with their source metadata and similarity scores
-"""
 from embeddings import load_vector_store, build_vector_store
 from pathlib import Path
 from ingest import load_documents, split_into_chunks
