@@ -1,42 +1,47 @@
 # Document Q&A Agent (RAG)
 
-A retrieval-augmented question-answering agent: ask natural-language questions about a set of PDFs or technical documents and get grounded, source-cited answers instead of hallucinated ones.
+A retrieval-augmented question-answering agent: ask natural-language questions about a set of PDFs or technical documents and get grounded, source-cited answers instead of relying on unsupported model-generated responses.
 
-**Status: in progress.** This repo currently holds the project scaffold and stub modules. Implementation is being built module by module, in the order below.
+The project implements an end-to-end RAG pipeline using LangChain, Hugging Face embeddings, ChromaDB, and a locally hosted Llama 3.1 model through Ollama. A Streamlit interface supports document uploads, indexing, and interactive question answering.
 
 ## Why this project
 
-Built as hands-on practice with the core building blocks of production LLM applications: document ingestion, embeddings, vector retrieval, prompt-grounded generation, and actually evaluating whether the system's answers are correct and honestly sourced, not just plausible-sounding.
+Built as hands-on practice with the core building blocks of production LLM applications: document ingestion, embeddings, vector retrieval, prompt-grounded generation, and evaluating whether the system's answers are correct and supported by their sources, not just plausible-sounding.
+
+The focus is on building a modular, locally runnable document QA system with transparent retrieval and source attribution.
 
 ## Pipeline overview
 
-```
-ingest PDFs --> chunk text --> embed chunks (OpenAI) --> store in Chroma
+```text
+ingest PDFs --> chunk text --> embed chunks (Hugging Face) --> store in Chroma
     --> [user question] --> embed question --> retrieve top-k chunks
-    --> construct grounded prompt --> generate answer (OpenAI + LangChain)
-    --> cite sources --> [evaluation set scores accuracy + catches hallucinations]
+    --> construct grounded prompt --> generate answer (Ollama + LangChain)
+    --> cite sources --> [evaluation set scores answer quality]
 ```
+
+**Technology stack:** Python, LangChain, Ollama (Llama 3.1 8B), Hugging Face Sentence Transformers (`all-MiniLM-L6-v2`), ChromaDB, Streamlit, and Pytest.
+
+The language model runs locally through Ollama, so an OpenAI API key is not required.
 
 ## Project structure
 
-```
+```text
 document-qa-agent/
 ├── documents/                # source PDFs to ingest (gitignored, user-supplied)
 ├── data/                     # persisted Chroma vector store (gitignored, generated locally)
 ├── eval/
-│   └── qa_eval_set.json      # hand-written question/answer pairs for evaluation
+│   └── qa_eval_set.json      # question/answer pairs for evaluation
 ├── src/
-│   ├── ingest.py             # load PDFs, split into chunks
-│   ├── embeddings.py         # embed chunks with OpenAI, build/persist the Chroma store
-│   ├── retriever.py          # embed a query, retrieve top-k relevant chunks
-│   ├── prompts.py            # prompt templates that force grounding + citation
+│   ├── ingest.py             # load PDFs, split into overlapping chunks
+│   ├── embeddings.py         # Hugging Face embeddings, build/persist the Chroma store
+│   ├── retriever.py          # retrieve top-k relevant chunks using semantic similarity
+│   ├── prompts.py            # grounded prompt construction and citation instructions
 │   ├── agent.py              # LangChain RAG chain tying retrieval + generation together
-│   ├── evaluate.py           # run the eval set, score accuracy, flag hallucinations
-│   └── main.py               # CLI entry point: ask a question, get a cited answer
-├── app.py                    # optional Streamlit/Gradio UI wrapper
-├── tests/                    # unit tests for each module
+│   ├── evaluate.py           # evaluate answer correctness and grounding
+│   └── main.py               # CLI entry point for document question answering
+├── app.py                    # Streamlit UI for PDF upload, indexing, and Q&A
+├── tests/                    # project tests
 ├── requirements.txt
-├── .env.example              # OPENAI_API_KEY placeholder — never commit real keys
 ├── .gitignore
 └── README.md
 ```
@@ -45,30 +50,48 @@ document-qa-agent/
 
 | Step | Module | Depends on | Why this order |
 |---|---|---|---|
-| 1 | `ingest.py` | — | Nothing else works without loaded, chunked documents |
+| 1 | `ingest.py` | — | Documents must be loaded and chunked before retrieval can work |
 | 2 | `embeddings.py` | ingest | Chunks must exist before they can be embedded and stored |
-| 3 | `retriever.py` | embeddings | Retrieval needs a populated vector store to search against |
-| 4 | `prompts.py` | — (parallel) | Prompt design can be built alongside retrieval, wired in next |
-| 5 | `agent.py` | retriever, prompts | The RAG chain combines retrieval output with the grounded prompt |
-| 6 | `main.py` | agent | A usable CLI once the chain works end to end |
-| 7 | `evaluate.py` | agent | Evaluation only makes sense once there's a working agent to evaluate |
-| 8 | `app.py` | agent | UI wrapper is the last, optional polish layer |
+| 3 | `retriever.py` | embeddings | Retrieval requires a populated vector store |
+| 4 | `prompts.py` | — (parallel) | Prompt construction defines how retrieved context is used |
+| 5 | `agent.py` | retriever, prompts | The RAG chain combines retrieval with grounded generation |
+| 6 | `main.py` | agent | Provides a command-line entry point |
+| 7 | `evaluate.py` | agent | Measures answer quality using an evaluation dataset |
+| 8 | `app.py` | agent | Provides the interactive document upload and Q&A interface |
 
 ## Methodology notes
 
-- **Chunking strategy matters.** Chunks that are too large dilute retrieval relevance; too small loses context. Start with a fixed-size splitter (~500-1000 characters with overlap) and revisit if retrieval quality suffers.
-- **Grounding is enforced in the prompt, not assumed.** The prompt explicitly instructs the model to answer only from the retrieved context and to say "I don't know" rather than guess when the context doesn't contain the answer.
-- **Every answer cites its source chunk(s)/document(s).** This is what makes the system trustworthy rather than a black box — a user (or a reviewer) can verify the answer against the original text.
-- **The evaluation set is the honesty check.** A hand-written set of question/answer pairs with known-correct answers, scored for: correct, partially correct, wrong, or hallucinated (confidently wrong with no basis in the retrieved context). Failures are diagnosed (bad retrieval vs. bad chunking vs. a prompt that doesn't constrain the model) and fixed before calling the project done.
+- **Chunking strategy matters.** Chunks that are too large dilute retrieval relevance; chunks that are too small lose context. The system uses `RecursiveCharacterTextSplitter` with a chunk size of 800 characters and an overlap of 100 characters.
+- **Semantic retrieval is more than keyword matching.** Document chunks are embedded using `sentence-transformers/all-MiniLM-L6-v2` and stored in ChromaDB. Questions are embedded using the same model, allowing retrieval based on semantic similarity.
+- **Grounding is enforced in the prompt, not assumed.** The prompt instructs Llama 3.1 to answer only from the retrieved context and to say "I don't know" when the information is insufficient. Prompt instructions reduce unsupported answers but cannot guarantee their elimination.
+- **Answers include source references.** The agent returns the document filenames and page metadata associated with retrieved chunks, allowing users to check the original material.
+- **The evaluation set is the quality check.** A hand-written set of question/answer pairs is used to assess generated responses. Evaluation helps identify incorrect answers, missing information, weak retrieval, and unsupported claims.
+- **Local inference keeps the workflow self-contained.** Ollama runs Llama 3.1 8B locally, while Hugging Face generates embeddings and ChromaDB persists the vector index.
 
-## Getting started
+## Evaluation
 
-```bash
-pip install -r requirements.txt
-cp .env.example .env   # add your OPENAI_API_KEY
-python src/main.py
-```
+The project includes an evaluation module and a question/answer dataset under eval/.
+
+The evaluation workflow compares generated responses against expected answers and assesses answer quality using an LLM-based evaluator.
+
+Key areas of interest include:
+
+Correctness: Whether the response matches the expected information.
+
+Completeness: Whether the answer covers the important details.
+
+Groundedness: Whether the response is supported by retrieved context.
+
+Relevance: Whether the response addresses the original question.
+
+Evaluation scores should be interpreted alongside manual inspection of retrieved passages and source references.
 
 ## Results
 
-_To be filled in once the pipeline is built — will include retrieval quality notes, evaluation set scores, common failure modes found and fixed, and a short demo._
+The application supports PDF ingestion, chunking, local embedding generation, persistent vector storage, semantic retrieval, grounded answer generation, and source attribution through a Streamlit interface.
+
+The evaluation module provides a framework for measuring answer quality. Quantitative evaluation results and retrieval performance measurements will be reported after running the evaluation dataset.
+
+## Future improvements
+
+Potential extensions include hybrid search, reranking retrieved chunks, support for additional document formats, and more detailed retrieval evaluation.

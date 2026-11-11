@@ -1,44 +1,60 @@
-"""
-Step 4: Prompt templates that force the model to answer ONLY from retrieved context
-and to cite its sources, rather than guessing when the context is insufficient.
 
-Pseudocode:
-    build_qa_prompt(question, retrieved_chunks) ->
-        format retrieved chunks with their source labels (doc name + page)
-        instruct the model: "answer only using the context below; if the context
-        does not contain the answer, say 'I don't know'; cite the source(s) used"
-        return the assembled prompt string
-"""
-from retriever import retrieve_relevant_chunks
-from embeddings import load_vector_store
+"""Prompt construction for grounded document question answering."""
+
 from pathlib import Path
 
 
+QA_SYSTEM_INSTRUCTIONS = """
+You are a document question-answering assistant.
 
-QA_SYSTEM_INSTRUCTIONS = (
-    "Answer the question using ONLY the provided context. "
-    "If the context does not contain the answer, say 'I don't know' rather than guessing. "
-    "Cite the source document and page number(s) you used for your answer."
-)
+Answer the user's question using only the provided document passages.
+
+Rules:
+1. Read all retrieved passages carefully before answering.
+2. Find the passage that directly answers the question.
+3. The relevant information may appear in any passage.
+4. If the answer is present, provide it directly and clearly.
+5. Do not confuse campaign target audiences with creator selection criteria.
+6. Do not invent facts or use outside knowledge.
+7. Only say "I don't know" when none of the passages contain enough information.
+8. Keep the answer concise and factual.
+9. Cite the source document and page number.
+
+If the information is explicitly present in the context,
+answer the question instead of saying "I don't know".
+""".strip()
 
 
 def build_qa_prompt(question: str, retrieved_chunks: list) -> str:
-    """Assemble the grounded, citation-enforcing prompt from a question and its retrieved chunks."""
-    assembled_prompt = []
-    for chunk in retrieved_chunks:
-        formatted_chunk = f"Source: {Path(chunk.metadata['source']).name}\nPage: {chunk.metadata.get('page_label', chunk.metadata.get('page', 'unknown'))}\nContent: {chunk.page_content}"
-        assembled_prompt.append(formatted_chunk)
+    """Build a grounded prompt from retrieved document chunks."""
 
-    context = "\n\n".join(assembled_prompt)
-    final_prompt = f"{QA_SYSTEM_INSTRUCTIONS}\n\nContext:\n{context}\n\nQuestion: {question}"
-    return final_prompt
+    formatted_passages = []
 
-if __name__ == "__main__":
-    # Example usage
-    store = load_vector_store()
-    chunks = retrieve_relevant_chunks(store, "What is the relationship between wave speed, frequency, and wavelength?", k=4)
-    prompt = build_qa_prompt("What is the relationship between wave speed, frequency, and wavelength?", chunks)
-    print(prompt)
+    for index, chunk in enumerate(retrieved_chunks, start=1):
+        source = Path(
+            chunk.metadata.get("source", "Unknown document")
+        ).name
 
+        page = chunk.metadata.get(
+            "page_label",
+            chunk.metadata.get("page", "Unknown")
+        )
 
+        formatted_passages.append(
+            f"Passage {index}\n"
+            f"Source: {source}\n"
+            f"Page: {page}\n"
+            f"Text:\n{chunk.page_content}"
+        )
 
+    context = "\n\n---\n\n".join(formatted_passages)
+
+    if not context:
+        context = "No relevant document passages were found."
+
+    return (
+        f"{QA_SYSTEM_INSTRUCTIONS}\n\n"
+        f"DOCUMENT PASSAGES:\n{context}\n\n"
+        f"QUESTION:\n{question}\n\n"
+        "ANSWER:\n"
+    )
